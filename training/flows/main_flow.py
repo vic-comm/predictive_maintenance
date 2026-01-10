@@ -1,21 +1,49 @@
 import mlflow
 from mlflow.tracking import MlflowClient
 from prefect import flow, task
-import pandas as pd
-from sklearn.metrics import recall_score
-import os
-from .model_training import prepare_data, train_lr, train_xgb, train_rf
+import dagshub
+from dotenv import load_dotenv
+from model_training import prepare_data, train_lr, train_xgb, train_rf
+import os 
+import subprocess
+import sys
+
+
+load_dotenv()
 experiment_name = "predictive-maintenance-prediction"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
-mlflow_tracking_uri = "sqlite:///mlflow.db"
+
+@task
+def pull_dvc_data():
+    username = os.getenv("MLFLOW_TRACKING_USERNAME")
+    password = os.getenv("MLFLOW_TRACKING_PASSWORD")
+    try:
+        subprocess.run(["dvc", "config", "core.analytics", "false"], check=True)
+
+        subprocess.run(["dvc", "remote", "modify", "--local", "origin", "auth", "basic"], check=False)
+        subprocess.run(["dvc", "remote", "modify", "--local", "origin", "user", username], check=True)
+        subprocess.run(["dvc", "remote", "modify", "--local", "origin", "password", password], check=True)
+
+        print("Running 'dvc pull'...")
+        subprocess.run(["dvc", "pull"], check=True)
+        print("Data pulled successfully!")
+
+    except subprocess.CalledProcessError as e:
+        print(f"DVC Pull Failed: {e}")
+        raise e
 
 def setup_mlflow():
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+    
+    if not tracking_uri:
+        print("Warning: MLFLOW_TRACKING_URI not found. Saving locally.")
+    else:
+        mlflow.set_tracking_uri(tracking_uri)
+    client = MlflowClient()
     experiment = mlflow.get_experiment_by_name(experiment_name)
     if not experiment:
         mlflow.create_experiment(name=experiment_name, artifact_location=bucket)
     mlflow.set_experiment(experiment_name)
-    client = MlflowClient(tracking_uri=mlflow_tracking_uri)
     return client
 
 @task
@@ -37,15 +65,15 @@ def run_all_experiments(X_train, X_test, y_train, y_test):
     ]
     results.sort(key=lambda x: x[2], reverse=True)
     winner_name, winner_id, winner_score = results[0]
-    mv_1 = mlflow.register_model(f"runs:/{results[1][1]}/model", name=experiment_name)
-    mv_2 = mlflow.register_model(f"runs:/{results[2][1]}/model", name=experiment_name)
-    for model_name, run_id, score in results[1:]:        
-        mv = mlflow.register_model(f"runs:/{run_id}/model", name=experiment_name)
-        client.transition_model_version_stage(
-            name=experiment_name,
-            version=mv.version,
-            stage='Archived' 
-        )
+    # mv_1 = mlflow.register_model(f"runs:/{results[1][1]}/model", name=experiment_name)
+    # mv_2 = mlflow.register_model(f"runs:/{results[2][1]}/model", name=experiment_name)
+    # for model_name, run_id, score in results[1:]:        
+    #     mv = mlflow.register_model(f"runs:/{run_id}/model", name=experiment_name)
+    #     client.transition_model_version_stage(
+    #         name=experiment_name,
+    #         version=mv.version,
+    #         stage='Archived' 
+    #     )
     
     print(f"Best model: {winner_name} with Recall: {winner_score:.4f}")
     return winner_id, winner_score
@@ -71,21 +99,24 @@ def promote_best_model(winner_id, winner_score):
             stage='Production',
             archive_existing_versions=True
         )
-    else:
-        client.transition_model_version_stage(
-            name=experiment_name,
-            version=mv.version,
-            stage='Archived',
-            archive_existing_versions=True
-        )
+    # else:
+    #     client.transition_model_version_stage(
+    #         name=experiment_name,
+    #         version=mv.version,
+    #         stage='Archived',
+    #         archive_existing_versions=True
+    #     )
             
 
 @flow(name="Predictive Maintenance Training Flow")
 def main_flow():
+    pull_dvc_data()
     setup_mlflow()
     X_train, X_test, y_train, y_test = load_data()
     winner_id, winner_score = run_all_experiments(X_train, X_test, y_train, y_test)
     promote_best_model(winner_id, winner_score)
 
-if __name__ == "__main__":
-    main_flow()
+
+
+# if __name__ == "__main__":
+#     # main_flow()
