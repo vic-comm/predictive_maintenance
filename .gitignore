@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# MLflow
+mlflow.db
+mlruns/
+
+# Generated plots/artifacts
+*.png
+*.jpg
+*.pdf
+confusion_matrix.*
+feature_importance.*
+roc_curve.*
+
+# Or be more specific if you have other PNGs to keep
+/confusion_matrix.png
+/feature_importance.png
+/roc_curve.png

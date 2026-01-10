@@ -9,8 +9,7 @@ experiment_name = "predictive-maintenance-prediction"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 mlflow_tracking_uri = "sqlite:///mlflow.db"
 
-@task
-def setup_mlfow():
+def setup_mlflow():
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     experiment = mlflow.get_experiment_by_name(experiment_name)
     if not experiment:
@@ -27,7 +26,7 @@ def load_data():
 
 @task
 def run_all_experiments(X_train, X_test, y_train, y_test):
-    setup_mlfow()
+    client = setup_mlflow()
     xgb_run_id, xgb_recall = train_xgb(X_train, y_train, X_test, y_test)
     lr_run_id, lr_recall = train_lr(X_train, y_train, X_test, y_test)
     rf_run_id, rf_recall = train_rf(X_train, y_train, X_test, y_test)
@@ -38,13 +37,22 @@ def run_all_experiments(X_train, X_test, y_train, y_test):
     ]
     results.sort(key=lambda x: x[2], reverse=True)
     winner_name, winner_id, winner_score = results[0]
-
+    mv_1 = mlflow.register_model(f"runs:/{results[1][1]}/model", name=experiment_name)
+    mv_2 = mlflow.register_model(f"runs:/{results[2][1]}/model", name=experiment_name)
+    for model_name, run_id, score in results[1:]:        
+        mv = mlflow.register_model(f"runs:/{run_id}/model", name=experiment_name)
+        client.transition_model_version_stage(
+            name=experiment_name,
+            version=mv.version,
+            stage='Archived' 
+        )
+    
     print(f"Best model: {winner_name} with Recall: {winner_score:.4f}")
     return winner_id, winner_score
 
 @task
 def promote_best_model(winner_id, winner_score):
-    client = setup_mlfow()
+    client = setup_mlflow()
     try:
         prod_models = client.get_latest_versions(name=experiment_name, stages=["Production"])
         current_prod = prod_models[0]
@@ -53,20 +61,28 @@ def promote_best_model(winner_id, winner_score):
     except:
         prod_recall = 0.0
 
-    if winner_score > prod_recall:
-        model_url = f"runs:/{winner_id}/model"
-        mv = mlflow.register_model(model_url, name=experiment_name)
+    model_url = f"runs:/{winner_id}/model"
+    mv = mlflow.register_model(model_url, name=experiment_name)
 
+    if winner_score > prod_recall:
         client.transition_model_version_stage(
             name=experiment_name,
             version=mv.version,
             stage='Production',
             archive_existing_versions=True
         )
+    else:
+        client.transition_model_version_stage(
+            name=experiment_name,
+            version=mv.version,
+            stage='Archived',
+            archive_existing_versions=True
+        )
+            
 
 @flow(name="Predictive Maintenance Training Flow")
 def main_flow():
-    setup_mlfow()
+    setup_mlflow()
     X_train, X_test, y_train, y_test = load_data()
     winner_id, winner_score = run_all_experiments(X_train, X_test, y_train, y_test)
     promote_best_model(winner_id, winner_score)

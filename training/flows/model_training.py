@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -21,26 +22,38 @@ def prepare_data(path):
     
     mapping = {'L': 0, 'M': 1, 'H': 2}
     data['Type_encoded'] = data['Type'].map(mapping).astype(int)
-        
-    data = data.drop(['Type', 'UID', 'Product ID'], axis=1, errors='ignore')
+    drop_cols = ['Type', 'UID', 'Product ID', 'TWF', 'HDF', 'PWF', 'OSF', 'RNF']
+    data = data.drop(drop_cols, axis=1, errors='ignore')
     
-    y = data['Machine failure']
-    X = data.drop(['Machine failure'], axis=1)
+    data.columns = [re.sub(r"[\[\]<]", "", col) for col in data.columns]
+    data.columns = [col.replace(" ", "_") for col in data.columns] 
 
-    return X, y
-
+    target = 'Machine_failure'
+    
+    if target in data.columns:
+        y = data[target]
+        if isinstance(y, pd.DataFrame):
+            y = y.iloc[:, 0]
+        
+        y = y.to_numpy().ravel().astype(int)
+        
+        X = data.drop([target], axis=1)
+        return X, y
+    else:
+        return data, None
+    
 
 def train_lr(X_train, y_train, X_test, y_test):
+    y_test = np.array(y_test).ravel()
     def objective_lr(params):
-        mlflow.sklearn.autolog(exclusive=False, log_models=False)
-        
+        mlflow.sklearn.autolog(disable=True)     
         with mlflow.start_run(nested=True):
             mlflow.log_params(params)
             
             lr = LogisticRegression(
                 C=params['C'],
                 solver=params['solver'],
-                class_weight='balanced', # Critical
+                class_weight='balanced', 
                 max_iter=1000,
                 random_state=42
             )
@@ -50,15 +63,16 @@ def train_lr(X_train, y_train, X_test, y_test):
             y_pred = lr.predict(X_test)
             y_prob = lr.predict_proba(X_test)[:, 1]
             
-            recall = recall_score(y_test, y_pred)
-            roc_auc = roc_auc_score(y_test, y_prob)
-            accuracy = accuracy_score(y_test, y_pred)
-            f1 = f1_score(y_test, y_pred)
-            mlflow.log_metric('recall', recall)
-            mlflow.log_metric('roc_auc', roc_auc)
-            mlflow.log_metric('f1_score', f1)
-            mlflow.log_metric('accuracy', accuracy)
-            return {'loss': -roc_auc, 'status': STATUS_OK}
+            test_recall = recall_score(y_test, y_pred)
+            test_roc_auc = roc_auc_score(y_test, y_prob)
+            test_accuracy = accuracy_score(y_test, y_pred)
+            test_f1 = f1_score(y_test, y_pred)
+            mlflow.log_metric('test_recall', test_recall)
+            mlflow.log_metric('test_roc_auc', test_roc_auc)
+            mlflow.log_metric('test_f1_score', test_f1)
+            mlflow.log_metric('test_accuracy', test_accuracy)
+
+            return {'loss': -test_roc_auc, 'status': STATUS_OK}
     
     search_space_lr = {
         'C': hp.loguniform('C', -4, 2), 
@@ -82,10 +96,10 @@ def train_lr(X_train, y_train, X_test, y_test):
         
         lr_final = LogisticRegression(**final_params_lr, class_weight='balanced', max_iter=1000)
         lr_final.fit(X_train, y_train)
-        y_prob = lr_final.predict(X_test)      
-        y_pred = (y_prob > 0.5).astype(int)  
+        y_prob = lr_final.predict_proba(X_test)[:, 1] 
+        y_pred = (y_prob > 0.5).astype(int)
             
-        recall = recall_score(y_test, y_pred)
+        test_recall = recall_score(y_test, y_pred)
         
         mlflow.sklearn.log_model(
             sk_model=lr_final,
@@ -136,10 +150,11 @@ def train_lr(X_train, y_train, X_test, y_test):
         plt.savefig("feature_importance.png")
         mlflow.log_artifact("feature_importance.png")
         plt.close()
-    return run.info.run_id, recall
+    return run.info.run_id, test_recall
     
 
 def train_xgb(X_train, y_train, X_test, y_test):
+    y_test = np.array(y_test).ravel()
     def objective_xgb(params):
         params['objective'] = 'binary:logistic'
         params['scale_pos_weight'] = 27.5 
@@ -147,7 +162,7 @@ def train_xgb(X_train, y_train, X_test, y_test):
         dtrain = xgb.DMatrix(X_train, label=y_train)
         dtest = xgb.DMatrix(X_test, label=y_test)
         
-        mlflow.xgboost.autolog(exclusive=False, log_models=False, disable=True)
+        mlflow.xgboost.autolog(disable=True)
         
         with mlflow.start_run(nested=True):
             mlflow.log_params(params)
@@ -164,15 +179,17 @@ def train_xgb(X_train, y_train, X_test, y_test):
             y_prob = booster.predict(dtest)      
             y_pred = (y_prob > 0.5).astype(int)  
             
-            recall = recall_score(y_test, y_pred)
-            f1 = f1_score(y_test, y_pred)
-            roc_auc = roc_auc_score(y_test, y_prob)
-            accuracy_score = accuracy_score(y_test, y_pred)
-            mlflow.log_metric('recall', recall)
-            mlflow.log_metric('f1_score', f1) 
-            mlflow.log_metric('roc_auc', roc_auc)
-            mlflow.log_metric('accuracy', accuracy_score)
-            return {'loss': -roc_auc, 'status': STATUS_OK}
+            test_recall = recall_score(y_test, y_pred)
+            test_f1 = f1_score(y_test, y_pred)
+            test_roc_auc = roc_auc_score(y_test, y_prob)
+            test_accuracy = accuracy_score(y_test, y_pred)
+
+            mlflow.log_metric('test_recall', test_recall)
+            mlflow.log_metric('test_f1_score', test_f1) 
+            mlflow.log_metric('test_roc_auc', test_roc_auc)
+            mlflow.log_metric('test_accuracy', test_accuracy)
+
+            return {'loss': -test_roc_auc, 'status': STATUS_OK}
     
     search_space_xgb = {
         'max_depth': scope.int(hp.quniform('max_depth', 4, 20, 1)),
@@ -212,7 +229,7 @@ def train_xgb(X_train, y_train, X_test, y_test):
         y_prob = xg_model.predict(dtest)      
         y_pred = (y_prob > 0.5).astype(int)  
             
-        recall = recall_score(y_test, y_pred)
+        test_recall = recall_score(y_test, y_pred)
         
         mlflow.xgboost.log_model(
             xgb_model=xg_model, 
@@ -270,11 +287,12 @@ def train_xgb(X_train, y_train, X_test, y_test):
             plt.savefig("feature_importance.png")
             mlflow.log_artifact("feature_importance.png")
             plt.close()
-    return run.info.run_id, recall
+    return run.info.run_id, test_recall
     
 def train_rf(X_train, y_train, X_test, y_test):
+    y_test = np.array(y_test).ravel()
     def objective_rf(params):
-        mlflow.sklearn.autolog(exclusive=False, log_models=False, disable=True)
+        mlflow.sklearn.autolog(disable=True)
         
         with mlflow.start_run(nested=True):
             mlflow.log_params(params)
@@ -294,14 +312,18 @@ def train_rf(X_train, y_train, X_test, y_test):
             
             y_pred = rf.predict(X_test)
             y_prob = rf.predict_proba(X_test)[:, 1] 
-            recall = recall_score(y_test, y_pred)
-            f1 = f1_score(y_test, y_pred)
-            roc_auc = roc_auc_score(y_test, y_prob)
+
+            test_recall = recall_score(y_test, y_pred)
+            test_f1 = f1_score(y_test, y_pred)
+            test_roc_auc = roc_auc_score(y_test, y_prob)
+            test_accuracy = accuracy_score(y_test, y_pred)
             
-            mlflow.log_metric('recall', recall)
-            mlflow.log_metric('f1_score', f1)
-            mlflow.log_metric('roc_auc', roc_auc)            
-            return {'loss': -roc_auc, 'status': STATUS_OK}
+            mlflow.log_metric('test_recall', test_recall)
+            mlflow.log_metric('test_f1_score', test_f1)
+            mlflow.log_metric('test_roc_auc', test_roc_auc)     
+            mlflow.log_metric('test_accuracy', test_accuracy)       
+
+            return {'loss': -test_roc_auc, 'status': STATUS_OK}
 
     search_space_rf = {
         'n_estimators': scope.int(hp.quniform('n_estimators', 50, 500, 10)),
@@ -338,11 +360,13 @@ def train_rf(X_train, y_train, X_test, y_test):
         y_prob = rf_final.predict_proba(X_test)[:, 1]
             
         y_pred = rf_final.predict(X_test) 
-        recall = recall_score(y_test, y_pred)
-        roc_auc = roc_auc_score(y_test, y_prob)
+        test_recall = recall_score(y_test, y_pred)
+        test_roc_auc = roc_auc_score(y_test, y_prob)
+        test_accuracy = accuracy_score(y_test, y_pred)
         
-        mlflow.log_metric("recall", recall)
-        mlflow.log_metric('roc_auc', roc_auc)
+        mlflow.log_metric("test_recall", test_recall)
+        mlflow.log_metric('test_roc_auc', test_roc_auc)
+        mlflow.log_metric('test_accuracy', test_accuracy)
         mlflow.sklearn.log_model(
             sk_model=rf_final,
             artifact_path="model",
@@ -400,4 +424,5 @@ def train_rf(X_train, y_train, X_test, y_test):
             plt.savefig("feature_importance.png")
             mlflow.log_artifact("feature_importance.png")
             plt.close()
-        return run.info.run_id, recall
+        return run.info.run_id, test_recall
+    
