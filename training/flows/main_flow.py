@@ -15,16 +15,8 @@ bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
 @task
 def pull_dvc_data():
-    username = os.getenv("MLFLOW_TRACKING_USERNAME")
-    password = os.getenv("MLFLOW_TRACKING_PASSWORD")
     try:
-        subprocess.run(["dvc", "config", "core.analytics", "false"], check=True)
-
-        subprocess.run(["dvc", "remote", "modify", "--local", "origin", "auth", "basic"], check=False)
-        subprocess.run(["dvc", "remote", "modify", "--local", "origin", "user", username], check=True)
-        subprocess.run(["dvc", "remote", "modify", "--local", "origin", "password", password], check=True)
-
-        print("Running 'dvc pull'...")
+        
         subprocess.run(["dvc", "pull"], check=True)
         print("Data pulled successfully!")
 
