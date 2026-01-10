@@ -4,25 +4,25 @@ provider "aws" {
 
 # --- 1. THE INPUT STREAM ("The Mail Slot") ---
 resource "aws_kinesis_stream" "input_stream" {
-  name             = "predictive-maintenance-stream"
+  name             = var.input_stream_name
   shard_count      = 1
   retention_period = 24
 }
 
 # --- 2. THE OUTPUT STREAM ("The Outbox") ---
 resource "aws_kinesis_stream" "output_stream" {
-  name             = "predictive-maintenance-predictions"
+  name             = var.output_stream_name
   shard_count      = 1
   retention_period = 24
 }
 
-resource "aws_s3_bucket" "artifacts" {
-  bucket = "predictive-maintenance-artifacts-victor-obi" 
+data "aws_s3_bucket" "artifacts" {
+  bucket = var.artifacts_bucket_name
 }
 
 # --- 4. FIREHOSE ("The Delivery Truck") ---
 resource "aws_iam_role" "firehose_role" {
-  name = "predictive-maintenance-firehose-role-tf"
+  name = var.firehose_role_name
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "firehose.amazonaws.com" }}]

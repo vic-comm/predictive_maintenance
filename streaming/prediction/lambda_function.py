@@ -1,17 +1,22 @@
 import base64
 import json
 import boto3
+import mlflow
+import dagshub
 import mlflow.sklearn
 import pandas as pd
 import numpy as np
 import os
+from dotenv import load_dotenv
 
-RUN_ID = "af5272d6f08b458b9f5fbb497803e91d" 
-LOGGED_MODEL = f"runs:/{RUN_ID}/model"
+load_dotenv()
+LOGGED_MODEL = f"models:/predictive-maintenance-prediction/Production"
 OUTPUT_STREAM_NAME = "predictive-maintenance-predictions"
 kinesis_client = boto3.client('kinesis')
 
-
+tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+if tracking_uri:
+    mlflow.set_tracking_uri(tracking_uri)
 try:
     model = mlflow.sklearn.load_model(LOGGED_MODEL)
     print("Model loaded successfully.")

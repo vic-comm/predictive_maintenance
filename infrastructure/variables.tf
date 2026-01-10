@@ -13,7 +13,6 @@ variable "project_id" {
 variable "artifacts_bucket_name" {
   description = "The EXACT name of your existing S3 bucket"
   type        = string
-  # IMPORTANT: This must match your existing bucket name exactly!
   default     = "predictive-maintenance-artifacts-victor-obi"
 }
 
@@ -27,4 +26,27 @@ variable "output_stream_name" {
   description = "Name of the Kinesis stream for model predictions"
   type        = string
   default     = "predictive-maintenance-predictions"
+}
+
+variable "alert_email" {
+  description = "Email address to receive Drift Alerts"
+  type        = string
+  default     = "obiezuechidera@gmail.com"
+}
+
+variable "firehose_role_name" {
+  description = ""
+  type        = string
+  default     = "predictive-maintenance-firehose-role-tf" 
+  }
+
+variable "mlflow_uri" {
+  type = string
+}
+variable "mlflow_username" {
+  type = string
+}
+variable "mlflow_password" {
+  type = string
+  sensitive = true # Hides it from logs
 }

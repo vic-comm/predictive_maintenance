@@ -19,3 +19,4 @@ roc_curve.*
 /confusion_matrix.png
 /feature_importance.png
 /roc_curve.png
+.env
