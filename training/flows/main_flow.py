@@ -13,32 +13,78 @@ load_dotenv()
 experiment_name = "predictive-maintenance-prediction"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
-@task(log_prints=True)
-def pull_dvc_data():
-    # try:
+# @task(log_prints=True)
+# def pull_dvc_data():
+#     # try:
         
-    #     subprocess.run(["dvc", "pull"], check=True)
-    #     print("Data pulled successfully!")
+#     #     subprocess.run(["dvc", "pull"], check=True)
+#     #     print("Data pulled successfully!")
 
-    # except subprocess.CalledProcessError as e:
-    #     print(f"DVC Pull Failed: {e}")
-    #     raise e
+#     # except subprocess.CalledProcessError as e:
+#     #     print(f"DVC Pull Failed: {e}")
+#     #     raise e
 
-    result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True) # -v adds verbose logging
+#     result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True) # -v adds verbose logging
+    
+#     if result.returncode == 0:
+#         print("✅ Data pulled successfully!")
+#         print(result.stdout)
+#     else:
+#         print("DVC Pull Failed!")
+#         print("------------- STDOUT -------------")
+#         print(result.stdout)
+#         print("------------- STDERR -------------")
+#         print(result.stderr)
+#         print("----------------------------------")
+#         raise Exception("DVC Pull failed")
+    
+
+import os
+import subprocess
+from prefect import task
+
+@task
+def pull_dvc_data():
+    print("🔍 Checking credentials...")
+    
+    # 1. GET VARIABLES
+    dags_user = os.getenv("DAGSHUB_USER")
+    dags_token = os.getenv("DAGSHUB_TOKEN")
+    
+    # 2. DEBUGGING: Tell us if they are missing
+    if not dags_user or not dags_token:
+        print("❌ CRITICAL ERROR: Environment variables are missing!")
+        print(f"DAGSHUB_USER found: {dags_user is not None}")
+        print(f"DAGSHUB_TOKEN found: {dags_token is not None}")
+        raise Exception("Missing DAGSHUB credentials in Prefect Environment Variables.")
+        
+    print(f"✅ Found DAGSHUB_USER: {dags_user}")
+    print("✅ Found DAGSHUB_TOKEN: ************")
+
+    # 3. CONFIGURE DVC PROGRAMMATICALLY (The Nuclear Fix)
+    # We force the worker to use these credentials right now.
+    try:
+        print("⚙️ configuring DVC local credentials...")
+        subprocess.run(["dvc", "remote", "modify", "origin", "--local", "access_key_id", dags_user], check=True)
+        subprocess.run(["dvc", "remote", "modify", "origin", "--local", "secret_access_key", dags_token], check=True)
+    except Exception as e:
+        print(f"❌ Failed to configure DVC: {e}")
+        raise e
+
+    # 4. PULL DATA
+    print("🔄 Starting DVC Pull...")
+    result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True)
     
     if result.returncode == 0:
         print("✅ Data pulled successfully!")
         print(result.stdout)
     else:
-        print("DVC Pull Failed!")
-        print("------------- STDOUT -------------")
-        print(result.stdout)
+        print("❌ DVC Pull Failed!")
         print("------------- STDERR -------------")
         print(result.stderr)
         print("----------------------------------")
         raise Exception("DVC Pull failed")
     
-
 def setup_mlflow():
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
     
