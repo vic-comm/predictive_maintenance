@@ -37,6 +37,7 @@ def pull_dvc_data():
         print(result.stderr)
         print("----------------------------------")
         raise Exception("DVC Pull failed")
+    
 
 def setup_mlflow():
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
