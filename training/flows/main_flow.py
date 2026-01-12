@@ -10,7 +10,7 @@ import sys
 
 
 load_dotenv()
-experiment_name = "predictive-maintenance-prediction"
+experiment_name = "Predictive-Maintenance-Prod"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
 # @task(log_prints=True)
@@ -137,15 +137,7 @@ def run_all_experiments(X_train, X_test, y_train, y_test):
     ]
     results.sort(key=lambda x: x[2], reverse=True)
     winner_name, winner_id, winner_score = results[0]
-    # mv_1 = mlflow.register_model(f"runs:/{results[1][1]}/model", name=experiment_name)
-    # mv_2 = mlflow.register_model(f"runs:/{results[2][1]}/model", name=experiment_name)
-    # for model_name, run_id, score in results[1:]:        
-    #     mv = mlflow.register_model(f"runs:/{run_id}/model", name=experiment_name)
-    #     client.transition_model_version_stage(
-    #         name=experiment_name,
-    #         version=mv.version,
-    #         stage='Archived' 
-    #     )
+   
     
     print(f"Best model: {winner_name} with Recall: {winner_score:.4f}")
     return winner_id, winner_score
