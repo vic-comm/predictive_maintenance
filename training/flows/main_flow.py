@@ -43,48 +43,46 @@ import os
 import subprocess
 from prefect import task
 
-@task(log_prints=True)
+@task
 def pull_dvc_data():
     print("🔍 Checking credentials...")
     
-    # 1. GET VARIABLES
+    # Get the DagsHub (Office) Keys
     dags_user = os.getenv("DAGSHUB_USER")
     dags_token = os.getenv("DAGSHUB_TOKEN")
     
-    # 2. DEBUGGING: Tell us if they are missing
     if not dags_user or not dags_token:
-        print("❌ CRITICAL ERROR: Environment variables are missing!")
-        print(f"DAGSHUB_USER found: {dags_user is not None}")
-        print(f"DAGSHUB_TOKEN found: {dags_token is not None}")
-        raise Exception("Missing DAGSHUB credentials in Prefect Environment Variables.")
-        
-    print(f"✅ Found DAGSHUB_USER: {dags_user}")
-    print("✅ Found DAGSHUB_TOKEN: ************")
+        raise Exception("Missing DAGSHUB credentials!")
 
-    # 3. CONFIGURE DVC PROGRAMMATICALLY (The Nuclear Fix)
-    # We force the worker to use these credentials right now.
+    # --- THE MAGIC TRICK ---
+    # We create a copy of the environment variables
+    # and REMOVE the Amazon AWS keys from it.
+    # This prevents DVC from seeing the "House Key".
+    clean_env = os.environ.copy()
+    clean_env.pop("AWS_ACCESS_KEY_ID", None)
+    clean_env.pop("AWS_SECRET_ACCESS_KEY", None)
+    # -----------------------
+
+    print("⚙️ configuring DVC local credentials...")
     try:
-        print("⚙️ configuring DVC local credentials...")
-        subprocess.run(["dvc", "remote", "modify", "origin", "--local", "access_key_id", dags_user], check=True)
-        subprocess.run(["dvc", "remote", "modify", "origin", "--local", "secret_access_key", dags_token], check=True)
+        # We pass 'env=clean_env' so DVC only sees the DagsHub keys
+        subprocess.run(["dvc", "remote", "modify", "origin", "--local", "access_key_id", dags_user], check=True, env=clean_env)
+        subprocess.run(["dvc", "remote", "modify", "origin", "--local", "secret_access_key", dags_token], check=True, env=clean_env)
     except Exception as e:
         print(f"❌ Failed to configure DVC: {e}")
         raise e
 
-    # 4. PULL DATA
     print("🔄 Starting DVC Pull...")
-    result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True)
+    # Again, we pass 'env=clean_env' so DVC doesn't get confused by Amazon keys
+    result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True, env=clean_env)
     
     if result.returncode == 0:
         print("✅ Data pulled successfully!")
         print(result.stdout)
     else:
         print("❌ DVC Pull Failed!")
-        print("------------- STDERR -------------")
         print(result.stderr)
-        print("----------------------------------")
-        raise Exception("DVC Pull failed")
-    
+        raise Exception("DVC Pull failed")    
 def setup_mlflow():
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
     
