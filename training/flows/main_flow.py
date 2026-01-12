@@ -10,7 +10,7 @@ import sys
 
 
 load_dotenv()
-experiment_name = "Predictive-Maintenance-Prod"
+experiment_name = "Predictive-Maintenance-Final"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
 # @task(log_prints=True)
@@ -96,10 +96,10 @@ def pull_dvc_data():
     result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True)
     
     if result.returncode == 0:
-        print("✅ Data pulled successfully!")
+        print("Data pulled successfully!")
         print(result.stdout)
     else:
-        print("❌ DVC Pull Failed!")
+        print("DVC Pull Failed!")
         print(result.stderr)
         raise Exception("DVC Pull failed")
     

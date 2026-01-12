@@ -13,6 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 import mlflow
 import mlflow.sklearn
 import numpy as np
+from main_flow import setup_mlflow
 
 def prepare_data(path):
     if path.endswith('.csv'):
@@ -44,6 +45,7 @@ def prepare_data(path):
     
 
 def train_lr(X_train, y_train, X_test, y_test):
+    setup_mlflow()
     y_test = np.array(y_test).ravel()
     def objective_lr(params):
         mlflow.sklearn.autolog(disable=True)     
