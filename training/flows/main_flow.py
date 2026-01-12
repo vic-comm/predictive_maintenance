@@ -15,14 +15,28 @@ bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
 @task
 def pull_dvc_data():
-    try:
+    # try:
         
-        subprocess.run(["dvc", "pull"], check=True)
-        print("Data pulled successfully!")
+    #     subprocess.run(["dvc", "pull"], check=True)
+    #     print("Data pulled successfully!")
 
-    except subprocess.CalledProcessError as e:
-        print(f"DVC Pull Failed: {e}")
-        raise e
+    # except subprocess.CalledProcessError as e:
+    #     print(f"DVC Pull Failed: {e}")
+    #     raise e
+
+    result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True) # -v adds verbose logging
+    
+    if result.returncode == 0:
+        print("✅ Data pulled successfully!")
+        print(result.stdout)
+    else:
+        print("DVC Pull Failed!")
+        print("------------- STDOUT -------------")
+        print(result.stdout)
+        print("------------- STDERR -------------")
+        print(result.stderr)
+        print("----------------------------------")
+        raise Exception("DVC Pull failed")
 
 def setup_mlflow():
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
