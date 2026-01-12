@@ -104,7 +104,6 @@ def train_lr(X_train, y_train, X_test, y_test):
         mlflow.sklearn.log_model(
             sk_model=lr_final,
             artifact_path="model",
-            registered_model_name="predictive-maintenance-logreg"
         )
         
         print("Logistic Regression Champion Saved.")
@@ -233,8 +232,7 @@ def train_xgb(X_train, y_train, X_test, y_test):
         
         mlflow.xgboost.log_model(
             xgb_model=xg_model, 
-            artifact_path="model", # Correct argument name
-            registered_model_name="predictive-maintenance-model"
+            artifact_path="model", 
         )
         # ARTIFACT 1: Confusion Matrix
         cm = confusion_matrix(y_test, y_pred)
@@ -370,7 +368,6 @@ def train_rf(X_train, y_train, X_test, y_test):
         mlflow.sklearn.log_model(
             sk_model=rf_final,
             artifact_path="model",
-            registered_model_name="predictive-maintenance-rf"
         )
         
         print(f"Random Forest Saved. Run ID: {run.info.run_id}")
