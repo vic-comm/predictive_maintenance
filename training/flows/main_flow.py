@@ -43,7 +43,7 @@ import os
 import subprocess
 from prefect import task
 
-@task
+@task(log_prints=True)
 def pull_dvc_data():
     print("🔍 Checking credentials...")
     
