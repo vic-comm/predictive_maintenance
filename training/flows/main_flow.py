@@ -39,42 +39,61 @@ bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 #         raise Exception("DVC Pull failed")
     
 
-import os
+# import os
+# import subprocess
+# from prefect import task
+
+# @task(log_prints=True)
+# def pull_dvc_data():
+#     print("🔍 Checking credentials...")
+    
+#     # Get the DagsHub (Office) Keys
+#     dags_user = os.getenv("DAGSHUB_USER")
+#     dags_token = os.getenv("DAGSHUB_TOKEN")
+    
+#     if not dags_user or not dags_token:
+#         raise Exception("Missing DAGSHUB credentials!")
+
+#     # --- THE MAGIC TRICK ---
+#     # We create a copy of the environment variables
+#     # and REMOVE the Amazon AWS keys from it.
+#     # This prevents DVC from seeing the "House Key".
+#     clean_env = os.environ.copy()
+#     clean_env.pop("AWS_ACCESS_KEY_ID", None)
+#     clean_env.pop("AWS_SECRET_ACCESS_KEY", None)
+#     # -----------------------
+
+#     print("⚙️ configuring DVC local credentials...")
+#     try:
+#         # We pass 'env=clean_env' so DVC only sees the DagsHub keys
+#         subprocess.run(["dvc", "remote", "modify", "origin", "--local", "access_key_id", dags_user], check=True, env=clean_env)
+#         subprocess.run(["dvc", "remote", "modify", "origin", "--local", "secret_access_key", dags_token], check=True, env=clean_env)
+#     except Exception as e:
+#         print(f"❌ Failed to configure DVC: {e}")
+#         raise e
+
+#     print("🔄 Starting DVC Pull...")
+#     # Again, we pass 'env=clean_env' so DVC doesn't get confused by Amazon keys
+#     result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True, env=clean_env)
+    
+#     if result.returncode == 0:
+#         print("✅ Data pulled successfully!")
+#         print(result.stdout)
+#     else:
+#         print("❌ DVC Pull Failed!")
+#         print(result.stderr)
+#         raise Exception("DVC Pull failed")    
+
 import subprocess
 from prefect import task
 
 @task(log_prints=True)
 def pull_dvc_data():
-    print("🔍 Checking credentials...")
+    print("Starting DVC Pull from S3...")
     
-    # Get the DagsHub (Office) Keys
-    dags_user = os.getenv("DAGSHUB_USER")
-    dags_token = os.getenv("DAGSHUB_TOKEN")
-    
-    if not dags_user or not dags_token:
-        raise Exception("Missing DAGSHUB credentials!")
-
-    # --- THE MAGIC TRICK ---
-    # We create a copy of the environment variables
-    # and REMOVE the Amazon AWS keys from it.
-    # This prevents DVC from seeing the "House Key".
-    clean_env = os.environ.copy()
-    clean_env.pop("AWS_ACCESS_KEY_ID", None)
-    clean_env.pop("AWS_SECRET_ACCESS_KEY", None)
-    # -----------------------
-
-    print("⚙️ configuring DVC local credentials...")
-    try:
-        # We pass 'env=clean_env' so DVC only sees the DagsHub keys
-        subprocess.run(["dvc", "remote", "modify", "origin", "--local", "access_key_id", dags_user], check=True, env=clean_env)
-        subprocess.run(["dvc", "remote", "modify", "origin", "--local", "secret_access_key", dags_token], check=True, env=clean_env)
-    except Exception as e:
-        print(f"❌ Failed to configure DVC: {e}")
-        raise e
-
-    print("🔄 Starting DVC Pull...")
-    # Again, we pass 'env=clean_env' so DVC doesn't get confused by Amazon keys
-    result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True, env=clean_env)
+    # No need for clean_env or hidden keys! 
+    # It will automatically use the AWS keys from Prefect.
+    result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True)
     
     if result.returncode == 0:
         print("✅ Data pulled successfully!")
@@ -82,7 +101,9 @@ def pull_dvc_data():
     else:
         print("❌ DVC Pull Failed!")
         print(result.stderr)
-        raise Exception("DVC Pull failed")    
+        raise Exception("DVC Pull failed")
+    
+
 def setup_mlflow():
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
     
