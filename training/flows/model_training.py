@@ -9,11 +9,9 @@ from sklearn.feature_extraction import DictVectorizer
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 from hyperopt.pyll import scope
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import LabelEncoder
 import mlflow
 import mlflow.sklearn
 import numpy as np
-from main_flow import setup_mlflow
 
 def prepare_data(path):
     if path.endswith('.csv'):
@@ -45,7 +43,6 @@ def prepare_data(path):
     
 
 def train_lr(X_train, y_train, X_test, y_test):
-    setup_mlflow()
     y_test = np.array(y_test).ravel()
     def objective_lr(params):
         mlflow.sklearn.autolog(disable=True)     
