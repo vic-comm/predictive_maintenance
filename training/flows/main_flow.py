@@ -13,7 +13,7 @@ load_dotenv()
 experiment_name = "predictive-maintenance-prediction"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
-@task
+@task(log_prints=True)
 def pull_dvc_data():
     # try:
         
