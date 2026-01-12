@@ -13,79 +13,6 @@ load_dotenv()
 experiment_name = "Predictive-Maintenance-Final"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
-# @task(log_prints=True)
-# def pull_dvc_data():
-#     # try:
-        
-#     #     subprocess.run(["dvc", "pull"], check=True)
-#     #     print("Data pulled successfully!")
-
-#     # except subprocess.CalledProcessError as e:
-#     #     print(f"DVC Pull Failed: {e}")
-#     #     raise e
-
-#     result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True) # -v adds verbose logging
-    
-#     if result.returncode == 0:
-#         print("✅ Data pulled successfully!")
-#         print(result.stdout)
-#     else:
-#         print("DVC Pull Failed!")
-#         print("------------- STDOUT -------------")
-#         print(result.stdout)
-#         print("------------- STDERR -------------")
-#         print(result.stderr)
-#         print("----------------------------------")
-#         raise Exception("DVC Pull failed")
-    
-
-# import os
-# import subprocess
-# from prefect import task
-
-# @task(log_prints=True)
-# def pull_dvc_data():
-#     print("🔍 Checking credentials...")
-    
-#     # Get the DagsHub (Office) Keys
-#     dags_user = os.getenv("DAGSHUB_USER")
-#     dags_token = os.getenv("DAGSHUB_TOKEN")
-    
-#     if not dags_user or not dags_token:
-#         raise Exception("Missing DAGSHUB credentials!")
-
-#     # --- THE MAGIC TRICK ---
-#     # We create a copy of the environment variables
-#     # and REMOVE the Amazon AWS keys from it.
-#     # This prevents DVC from seeing the "House Key".
-#     clean_env = os.environ.copy()
-#     clean_env.pop("AWS_ACCESS_KEY_ID", None)
-#     clean_env.pop("AWS_SECRET_ACCESS_KEY", None)
-#     # -----------------------
-
-#     print("⚙️ configuring DVC local credentials...")
-#     try:
-#         # We pass 'env=clean_env' so DVC only sees the DagsHub keys
-#         subprocess.run(["dvc", "remote", "modify", "origin", "--local", "access_key_id", dags_user], check=True, env=clean_env)
-#         subprocess.run(["dvc", "remote", "modify", "origin", "--local", "secret_access_key", dags_token], check=True, env=clean_env)
-#     except Exception as e:
-#         print(f"❌ Failed to configure DVC: {e}")
-#         raise e
-
-#     print("🔄 Starting DVC Pull...")
-#     # Again, we pass 'env=clean_env' so DVC doesn't get confused by Amazon keys
-#     result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True, env=clean_env)
-    
-#     if result.returncode == 0:
-#         print("✅ Data pulled successfully!")
-#         print(result.stdout)
-#     else:
-#         print("❌ DVC Pull Failed!")
-#         print(result.stderr)
-#         raise Exception("DVC Pull failed")    
-
-import subprocess
-from prefect import task
 
 @task(log_prints=True)
 def pull_dvc_data():
@@ -118,15 +45,14 @@ def setup_mlflow():
     mlflow.set_experiment(experiment_name)
     return client
 
-@task
+@task(log_prints=True)
 def load_data():
     X_train, y_train = prepare_data("data/partition/train.parquet")
     X_test, y_test = prepare_data("data/partition/test.parquet")
     return X_train, X_test, y_train, y_test
 
-@task
+@task(log_prints=True)
 def run_all_experiments(X_train, X_test, y_train, y_test):
-    client = setup_mlflow()
     xgb_run_id, xgb_recall = train_xgb(X_train, y_train, X_test, y_test)
     lr_run_id, lr_recall = train_lr(X_train, y_train, X_test, y_test)
     rf_run_id, rf_recall = train_rf(X_train, y_train, X_test, y_test)
@@ -142,7 +68,7 @@ def run_all_experiments(X_train, X_test, y_train, y_test):
     print(f"Best model: {winner_name} with Recall: {winner_score:.4f}")
     return winner_id, winner_score
 
-@task
+@task(log_prints=True)
 def promote_best_model(winner_id, winner_score):
     client = setup_mlflow()
     try:

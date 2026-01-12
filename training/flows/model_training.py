@@ -99,11 +99,8 @@ def train_lr(X_train, y_train, X_test, y_test):
         y_pred = (y_prob > 0.5).astype(int)
             
         test_recall = recall_score(y_test, y_pred)
-        
-        mlflow.sklearn.log_model(
-            sk_model=lr_final,
-            artifact_path="model",
-        )
+        print(f"DEBUG: Attempting to save LR model for run {run.info.run_id}...")
+        mlflow.sklearn.log_model(sk_model=lr_final, artifact_path="model")
         
         print("Logistic Regression Champion Saved.")
         # ARTIFACT 1: Confusion Matrix
