@@ -101,7 +101,8 @@ def train_lr(X_train, y_train, X_test, y_test):
         test_recall = recall_score(y_test, y_pred)
         print(f"DEBUG: Attempting to save LR model for run {run.info.run_id}...")
         mlflow.sklearn.log_model(sk_model=lr_final, artifact_path="model")
-        
+        model_uri = mlflow.get_artifact_uri("model")
+        print(f"DEBUG: Model successfully saved to: {model_uri}")
         print("Logistic Regression Champion Saved.")
         # ARTIFACT 1: Confusion Matrix
         cm = confusion_matrix(y_test, y_pred)
@@ -230,6 +231,10 @@ def train_xgb(X_train, y_train, X_test, y_test):
             xgb_model=xg_model, 
             artifact_path="model", 
         )
+
+        model_uri = mlflow.get_artifact_uri("model")
+        print(f"DEBUG: Model successfully saved to: {model_uri}")
+        print(f"XGBoost Champion Saved. Run ID: {run.info.run_id}")
         # ARTIFACT 1: Confusion Matrix
         cm = confusion_matrix(y_test, y_pred)
         plt.figure(figsize=(6, 4))
@@ -365,6 +370,8 @@ def train_rf(X_train, y_train, X_test, y_test):
             sk_model=rf_final,
             artifact_path="model",
         )
+        model_uri = mlflow.get_artifact_uri("model")
+        print(f"DEBUG: Model successfully saved to: {model_uri}")
         
         print(f"Random Forest Saved. Run ID: {run.info.run_id}")
         # ARTIFACT 1: 
