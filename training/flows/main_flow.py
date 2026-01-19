@@ -10,7 +10,7 @@ import sys
 
 
 load_dotenv()
-experiment_name = "Predictive-Maintenance-Final"
+experiment_name = "Predictive-Maintenance-Experiment"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
 
@@ -18,8 +18,6 @@ bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 def pull_dvc_data():
     print("Starting DVC Pull from S3...")
     
-    # No need for clean_env or hidden keys! 
-    # It will automatically use the AWS keys from Prefect.
     result = subprocess.run(["dvc", "pull", "-v"], capture_output=True, text=True)
     
     if result.returncode == 0:
