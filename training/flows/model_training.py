@@ -100,7 +100,8 @@ def train_lr(X_train, y_train, X_test, y_test):
             
         test_recall = recall_score(y_test, y_pred)
         print(f"DEBUG: Attempting to save LR model for run {run.info.run_id}...")
-        mlflow.sklearn.log_model(sk_model=lr_final, artifact_path="model")
+        model_info = mlflow.sklearn.log_model(sk_model=lr_final, artifact_path="model")
+        model_uuid = model_info.model_uuid
         model_uri = mlflow.get_artifact_uri("model")
         print(f"DEBUG: Model successfully saved to: {model_uri}")
         print("Logistic Regression Champion Saved.")
@@ -146,7 +147,7 @@ def train_lr(X_train, y_train, X_test, y_test):
         plt.savefig("feature_importance.png")
         mlflow.log_artifact("feature_importance.png")
         plt.close()
-    return run.info.run_id, test_recall
+    return run.info.run_id, model_uuid, test_recall
     
 
 def train_xgb(X_train, y_train, X_test, y_test):
@@ -227,11 +228,11 @@ def train_xgb(X_train, y_train, X_test, y_test):
             
         test_recall = recall_score(y_test, y_pred)
         
-        mlflow.xgboost.log_model(
+        model_info = mlflow.xgboost.log_model(
             xgb_model=xg_model, 
             artifact_path="model", 
         )
-
+        model_uuid = model_info.model_uuid
         model_uri = mlflow.get_artifact_uri("model")
         print(f"DEBUG: Model successfully saved to: {model_uri}")
         print(f"XGBoost Champion Saved. Run ID: {run.info.run_id}")
@@ -286,7 +287,7 @@ def train_xgb(X_train, y_train, X_test, y_test):
             plt.savefig("feature_importance.png")
             mlflow.log_artifact("feature_importance.png")
             plt.close()
-    return run.info.run_id, test_recall
+    return run.info.run_id, model_uuid, test_recall
     
 def train_rf(X_train, y_train, X_test, y_test):
     y_test = np.array(y_test).ravel()
@@ -366,10 +367,11 @@ def train_rf(X_train, y_train, X_test, y_test):
         mlflow.log_metric("test_recall", test_recall)
         mlflow.log_metric('test_roc_auc', test_roc_auc)
         mlflow.log_metric('test_accuracy', test_accuracy)
-        mlflow.sklearn.log_model(
+        model_info = mlflow.sklearn.log_model(
             sk_model=rf_final,
             artifact_path="model",
         )
+        model_uuid = model_info.model_uuid
         model_uri = mlflow.get_artifact_uri("model")
         print(f"DEBUG: Model successfully saved to: {model_uri}")
         
@@ -424,7 +426,7 @@ def train_rf(X_train, y_train, X_test, y_test):
             plt.savefig("feature_importance.png")
             mlflow.log_artifact("feature_importance.png")
             plt.close()
-    return run.info.run_id, test_recall
+    return run.info.run_id, model_uuid, test_recall
     
 
 
