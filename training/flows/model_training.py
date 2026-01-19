@@ -424,7 +424,7 @@ def train_rf(X_train, y_train, X_test, y_test):
             plt.savefig("feature_importance.png")
             mlflow.log_artifact("feature_importance.png")
             plt.close()
-        return run.info.run_id, test_recall
+    return run.info.run_id, test_recall
     
 
 
