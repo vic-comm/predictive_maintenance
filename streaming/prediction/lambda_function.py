@@ -3,26 +3,19 @@ import json
 import boto3
 import mlflow
 import dagshub
-import mlflow.sklearn
 import pandas as pd
-import numpy as np
 import os
+from mlflow.tracking import MlflowClient
 from dotenv import load_dotenv
 
 load_dotenv()
-LOGGED_MODEL = f"models:/predictive-maintenance-prediction/Production"
+EXPERIMENT_NAME = "Predictive-Maintenance-Experiment"
+STAGE="Production"
+MODEL_URI=F"models:/{EXPERIMENT_NAME}/{STAGE}"
+# MODEL_URI = "models:/Predictive-Maintenance-Experiment/Production"
 OUTPUT_STREAM_NAME = "predictive-maintenance-predictions"
 kinesis_client = boto3.client('kinesis')
 
-tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
-if tracking_uri:
-    mlflow.set_tracking_uri(tracking_uri)
-try:
-    model = mlflow.sklearn.load_model(LOGGED_MODEL)
-    print("Model loaded successfully.")
-except Exception as e:
-    print(f"CRITICAL ERROR: Could not load model. {str(e)}")
-    model = None
 
 def decode_kinesis_data(record):
     try:
@@ -43,9 +36,20 @@ def prepare_features(input_data):
             df[col] = 0 
     return df[required_cols]
 
+model = None
 def lambda_handler(event, context):
+
+    global model
+    
     if model is None:
-        return {'statusCode': 500, 'body': json.dumps("Model not initialized")}
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+        if tracking_uri:
+            mlflow.set_tracking_uri(tracking_uri)
+            client = MlflowClient()
+        versions = client.get_latest_versions(name=EXPERIMENT_NAME, stages=[STAGE])
+        mv = versions[0]
+        source = mv.source
+        model = mlflow.pyfunc.load_model(source)
 
     predictions = []
     
@@ -65,7 +69,8 @@ def lambda_handler(event, context):
                 'input_id': data.get('UDI', 'Unknown'), 
                 'prediction': prediction,
                 'probability': round(failure_prob, 4),
-                'status': 'Danger' if prediction == 1 else 'Normal'
+                'status': 'Danger' if prediction == 1 else 'Normal',
+                'model_version': 'Production'
             }
             
             print(f"PREDICTION: {json.dumps(result)}")
@@ -87,3 +92,33 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': json.dumps({'processed_count': len(predictions)})
     }
+
+
+# # Go back to root
+# cd ../..
+
+# # Tag the image (use your copied ECR URL)
+# docker tag predictive-maintenance-lambda:latest 852100867623.dkr.ecr.us-east-1.amazonaws.com/predictive-maintenance-lambda:latest
+
+# # Push
+# docker push 852100867623.dkr.ecr.us-east-1.amazonaws.com/predictive-maintenance-lambda:latest
+# ecr_repository_url = "852100867623.dkr.ecr.us-east-1.amazonaws.com/predictive-maintenance-lambda"
+
+# cd streaming/prediction
+
+# # 1. Build (Clean x86 build)
+# docker build --platform linux/amd64 --provenance=false -t predictive-maintenance-lambda .
+
+# # 2. Tag
+# docker tag predictive-maintenance-lambda:latest 852100867623.dkr.ecr.us-east-1.amazonaws.com/predictive-maintenance-lambda:latest
+
+# # 3. Push
+# docker push 852100867623.dkr.ecr.us-east-1.amazonaws.com/predictive-maintenance-lambda:latest
+
+# # 4. Force Update Lambda
+# aws lambda update-function-code \
+#   --function-name predictive-maintenance-function-tf \
+#   --image-uri 852100867623.dkr.ecr.us-east-1.amazonaws.com/predictive-maintenance-lambda:latest
+
+# cd ../infrastructure
+# terraform apply -var="deploy_lambda=true"
