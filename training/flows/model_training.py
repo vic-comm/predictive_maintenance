@@ -21,7 +21,7 @@ def prepare_data(path):
     
     mapping = {'L': 0, 'M': 1, 'H': 2}
     data['Type_encoded'] = data['Type'].map(mapping).astype(int)
-    drop_cols = ['Type', 'UID', 'Product ID', 'TWF', 'HDF', 'PWF', 'OSF', 'RNF']
+    drop_cols = ['Type', 'UDI', 'Product ID', 'TWF', 'HDF', 'PWF', 'OSF', 'RNF']
     data = data.drop(drop_cols, axis=1, errors='ignore')
     
     data.columns = [re.sub(r"[\[\]<]", "", col) for col in data.columns]
@@ -100,8 +100,7 @@ def train_lr(X_train, y_train, X_test, y_test):
             
         test_recall = recall_score(y_test, y_pred)
         print(f"DEBUG: Attempting to save LR model for run {run.info.run_id}...")
-        model_info = mlflow.sklearn.log_model(sk_model=lr_final, artifact_path="model")
-        model_uuid = model_info.model_uuid
+        mlflow.sklearn.log_model(sk_model=lr_final, artifact_path="model")
         model_uri = mlflow.get_artifact_uri("model")
         print(f"DEBUG: Model successfully saved to: {model_uri}")
         print("Logistic Regression Champion Saved.")
@@ -147,7 +146,7 @@ def train_lr(X_train, y_train, X_test, y_test):
         plt.savefig("feature_importance.png")
         mlflow.log_artifact("feature_importance.png")
         plt.close()
-    return run.info.run_id, model_uuid, test_recall
+    return run.info.run_id, test_recall
     
 
 def train_xgb(X_train, y_train, X_test, y_test):
@@ -228,11 +227,10 @@ def train_xgb(X_train, y_train, X_test, y_test):
             
         test_recall = recall_score(y_test, y_pred)
         
-        model_info = mlflow.xgboost.log_model(
+        mlflow.xgboost.log_model(
             xgb_model=xg_model, 
             artifact_path="model", 
         )
-        model_uuid = model_info.model_uuid
         model_uri = mlflow.get_artifact_uri("model")
         print(f"DEBUG: Model successfully saved to: {model_uri}")
         print(f"XGBoost Champion Saved. Run ID: {run.info.run_id}")
@@ -287,7 +285,7 @@ def train_xgb(X_train, y_train, X_test, y_test):
             plt.savefig("feature_importance.png")
             mlflow.log_artifact("feature_importance.png")
             plt.close()
-    return run.info.run_id, model_uuid, test_recall
+    return run.info.run_id, test_recall
     
 def train_rf(X_train, y_train, X_test, y_test):
     y_test = np.array(y_test).ravel()
@@ -367,11 +365,10 @@ def train_rf(X_train, y_train, X_test, y_test):
         mlflow.log_metric("test_recall", test_recall)
         mlflow.log_metric('test_roc_auc', test_roc_auc)
         mlflow.log_metric('test_accuracy', test_accuracy)
-        model_info = mlflow.sklearn.log_model(
+        mlflow.sklearn.log_model(
             sk_model=rf_final,
             artifact_path="model",
         )
-        model_uuid = model_info.model_uuid
         model_uri = mlflow.get_artifact_uri("model")
         print(f"DEBUG: Model successfully saved to: {model_uri}")
         
@@ -426,7 +423,7 @@ def train_rf(X_train, y_train, X_test, y_test):
             plt.savefig("feature_importance.png")
             mlflow.log_artifact("feature_importance.png")
             plt.close()
-    return run.info.run_id, model_uuid, test_recall
+    return run.info.run_id, test_recall
     
 
 
@@ -560,7 +557,6 @@ def train_rf(X_train, y_train, X_test, y_test):
 # * `/predict` endpoint
 # * Dockerized deployment
 
-# This is optional for predictive maintenance, but strong.
 
 # ---
 
@@ -714,3 +710,168 @@ def train_rf(X_train, y_train, X_test, y_test):
 # * Help you write a **README that sells this properly**
 
 # Say which.
+
+
+# grafane queries:
+# traffick light: filter @message like /PREDICTION/
+# | fields message.status
+# | sort @timestamp desc
+# | limit 1
+# # Probability Trend (The "Heartbeat")
+# filter @message like /PREDICTION/
+# | stats avg(message.probability) as Prob by bin(1m)
+# The "Danger" Counter
+# filter @message like /PREDICTION/ and message.prediction = 1
+# | stats count(*) as FailureCount by bin(1h)
+
+# Here are the exact queries you need to copy-paste into Grafana.
+
+# **Important Pre-requisite:**
+# Since your Lambda prints logs in the format `PREDICTION: {...json...}`, we must use the `parse` command to extract the data fields cleanly.
+
+# In Grafana, make sure your Data Source is **CloudWatch**, the Region is `us-east-1`, and the Log Group is set to your Lambda function (e.g., `/aws/lambda/predictive-maintenance-function-tf`).
+
+# ---
+
+# ### Layer 1: The "Operator View" (Current Status)
+
+# #### 1. The "Traffic Light" (Stat Panel)
+
+# * **Goal:** Show "Normal" or "Danger" in a big colored box.
+# * **Visualization:** Stat
+# * **Settings:**
+# * *Color Mode:* Value
+# * *Value Mappings:* Normal  Green, Danger  Red
+
+
+# * **Query:**
+# ```sql
+# filter @message like /PREDICTION:/
+# | parse @message "PREDICTION: *" as payload
+# | fields payload.status
+# | sort @timestamp desc
+# | limit 1
+
+# ```
+
+
+
+# #### 2. Live Prediction Probability (Gauge Panel)
+
+# * **Goal:** A speedometer showing risk level.
+# * **Visualization:** Gauge
+# * **Settings:** Min: 0, Max: 1. Thresholds: Green (0), Yellow (0.5), Red (0.75).
+# * **Query:**
+# ```sql
+# filter @message like /PREDICTION:/
+# | parse @message "PREDICTION: *" as payload
+# | fields payload.probability
+# | sort @timestamp desc
+# | limit 1
+
+# ```
+
+
+
+# #### 3. Recent Alerts (Table Panel)
+
+# * **Goal:** List only the dangerous machines found in the last 24h.
+# * **Visualization:** Table
+# * **Query:**
+# ```sql
+# filter @message like /PREDICTION:/
+# | parse @message "PREDICTION: *" as payload
+# | filter payload.prediction = 1
+# | fields @timestamp, payload.input_id as MachineID, payload.probability as RiskScore
+# | sort @timestamp desc
+
+# ```
+
+
+
+# ---
+
+# ### Layer 2: The "Engineer View" (Diagnostics)
+
+# #### 4. Sensor Telemetry vs. Thresholds (Time Series)
+
+# * **Missing Data Alert:** currently, your Lambda `result` dictionary **only** saves the prediction, not the input features (Torque, Temperature, etc.).
+# * **Fix:** In your `lambda_function.py`, update the result dict to include input data:
+# ```python
+# # Update this in your python code first!
+# result = {
+#     ...,
+#     'Torque': data.get('Torque_Nm'),
+#     'Temp': data.get('Air_temperature_K')
+# }
+
+# ```
+
+
+# * **Query (After Fix):**
+# ```sql
+# filter @message like /PREDICTION:/
+# | parse @message "PREDICTION: *" as payload
+# | stats avg(payload.Torque) as Torque, avg(payload.Temp) as Temperature by bin(1m)
+
+# ```
+
+
+
+# #### 5. Drift Detection (Time Series)
+
+# * **Goal:** See if the average risk is creeping up over time.
+# * **Visualization:** Time Series
+# * **Query:**
+# ```sql
+# filter @message like /PREDICTION:/
+# | parse @message "PREDICTION: *" as payload
+# | stats avg(payload.probability) as AvgRiskScore by bin(5m)
+
+# ```
+
+
+# *Insight:* If this line trends upward while your machine count stays the same, your model (or machine health) is drifting.
+
+# ---
+
+# ### Layer 3: The "DevOps View" (System Health)
+
+# For these, you should switch the Grafana Query "Source" from **CloudWatch Logs** to **CloudWatch Metrics** for best accuracy, but here are the Logs versions if you want to keep it simple.
+
+# #### 6. Throughput (Predictions per Minute)
+
+# * **Visualization:** Time Series (Bar chart style)
+# * **Query:**
+# ```sql
+# filter @message like /PREDICTION:/
+# | stats count(*) as PredictionsPerMin by bin(1m)
+
+# ```
+
+
+
+# #### 7. Error Rate
+
+# * **Visualization:** Time Series (Red bars)
+# * **Query:**
+# ```sql
+# filter @message like /ERROR/ or @message like /Exception/ or @message like /Task timed out/
+# | stats count(*) as Errors by bin(5m)
+
+# ```
+
+
+
+# #### 8. System Lag (Iterator Age)
+
+# * **Note:** You **cannot** query this from Logs easily. You must use the **Metrics** API.
+# * **Grafana Setup:**
+# 1. Change **Query Mode** to `Metrics`.
+# 2. **Namespace:** `AWS/Lambda`
+# 3. **Metric Name:** `IteratorAge`
+# 4. **Statistic:** `Maximum`
+# 5. **FunctionName:** `predictive-maintenance-function-tf`
+
+
+# * *Insight:* If this number spikes (e.g., > 10000ms), your Lambda is too slow for the incoming Kinesis data stream.
