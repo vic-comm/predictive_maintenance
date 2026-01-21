@@ -10,7 +10,7 @@ import sys
 
 
 load_dotenv()
-experiment_name = "Predictive-Maintenance-Experiment"
+experiment_name = "Predictive-Maintenance-Experiment-v2"
 bucket = "s3://predictive-maintenance-artifacts-victor-obi/mlflow"
 
 
@@ -119,6 +119,6 @@ def main_flow():
 
 
 
-# if __name__ == "__main__":
-#     # main_flow()
+if __name__ == "__main__":
+    main_flow()
 
