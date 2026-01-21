@@ -60,28 +60,28 @@ def run_all_experiments(X_train, X_test, y_train, y_test):
     #     ("LogReg", lr_run_id, lr_recall)
     # ]
 
-    xgb_run_id, xgb_uuid, xgb_recall = train_xgb(X_train, y_train, X_test, y_test)
-    lr_run_id, lr_uuid, lr_recall = train_lr(X_train, y_train, X_test, y_test)
-    rf_run_id, rf_uuid, rf_recall = train_rf(X_train, y_train, X_test, y_test)
+    xgb_run_id, xgb_recall = train_xgb(X_train, y_train, X_test, y_test)
+    lr_run_id, lr_recall = train_lr(X_train, y_train, X_test, y_test)
+    rf_run_id, rf_recall = train_rf(X_train, y_train, X_test, y_test)
 
     results = [
-        ("XGBoost", xgb_run_id, xgb_uuid, xgb_recall),
-        ("RandomForest", rf_run_id, rf_uuid, rf_recall),
-        ("LogReg", lr_run_id, lr_uuid, lr_recall)
+        ("XGBoost", xgb_run_id, xgb_recall),
+        ("RandomForest", rf_run_id, rf_recall),
+        ("LogReg", lr_run_id, lr_recall)
     ]
 
-    results.sort(key=lambda x: x[3], reverse=True)
-    winner_name, winner_id, winner_uuid, winner_score = results[0]
+    results.sort(key=lambda x: x[2], reverse=True)
+    winner_name, winner_id, winner_score = results[0]
    
     
     print(f"Best model: {winner_name} with Recall: {winner_score:.4f}")
-    return winner_id, winner_uuid, winner_score
+    return winner_id, winner_score
 
 @task(log_prints=True)
-def promote_best_model(winner_id, winner_uuid, winner_score):
+def promote_best_model(winner_id, winner_score):
     client = setup_mlflow()
     bucket_root = "s3://predictive-maintenance-artifacts-victor-obi/mlflow/models"
-    model_url = f"{bucket_root}/{winner_uuid}/artifacts/model"
+    model_url = f"runs:/{winner_id}/model"
     try:
         prod_models = client.get_latest_versions(name=experiment_name, stages=["Production"])
         current_prod = prod_models[0]
@@ -90,7 +90,6 @@ def promote_best_model(winner_id, winner_uuid, winner_score):
     except:
         prod_recall = 0.0
 
-    # model_url = f"runs:/{winner_id}/model"
     print(f"DEBUG: Registering model from S3 path: {model_url}")
     mv = mlflow.register_model(model_url, name=experiment_name)
 
@@ -115,8 +114,8 @@ def main_flow():
     pull_dvc_data()
     setup_mlflow()
     X_train, X_test, y_train, y_test = load_data()
-    winner_id, winner_uuid, winner_score = run_all_experiments(X_train, X_test, y_train, y_test)
-    promote_best_model(winner_id, winner_uuid, winner_score)
+    winner_id, winner_score = run_all_experiments(X_train, X_test, y_train, y_test)
+    promote_best_model(winner_id, winner_score)
 
 
 
